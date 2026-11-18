@@ -1,6 +1,13 @@
+import Hero from "@/components/shared/Hero";
+import Navbar from "@/components/shared/Navbar";
+
 export default function Home() {
   return (
-    <h2>Home Page</h2>
-   
-  )
+    <>
+      <Navbar />
+      <main className="flex-1">
+        <Hero />
+      </main>
+    </>
+  );
 }
