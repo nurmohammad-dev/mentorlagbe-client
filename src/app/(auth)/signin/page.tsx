@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import { signIn } from "@/lib/auth-client";
 
 type Errors = {
   email?: string;
@@ -47,13 +48,14 @@ export default function SignInPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
+    // Validation check
     const nextErrors: Errors = {};
     if (!EMAIL_PATTERN.test(email)) nextErrors.email = "Enter a valid email address.";
     if (!password) nextErrors.password = "Enter your password.";
@@ -62,15 +64,40 @@ export default function SignInPage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    setLoading(false);
 
-    toast.add({
-      title: "Welcome back",
-      description: "Authentication isn't connected yet, so this is a preview sign-in.",
-      type: "success",
-    });
-    router.push("/");
+    try {
+      // BetterAuth sign in request
+      const { data, error } = await signIn.email({
+        email,
+        password,
+        rememberMe: true,
+        callbackURL: "/",
+      });
+
+      if (error) {
+        toast.add({
+          title: "Sign in failed",
+          description: error.message || "Invalid email or password.",
+          type: "error",
+        });
+      } else {
+        toast.add({
+          title: "Welcome back",
+          description: "Signed in successfully!",
+          type: "success",
+        });
+        router.push("/");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.add({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        type: "error",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

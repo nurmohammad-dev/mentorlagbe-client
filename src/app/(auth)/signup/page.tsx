@@ -28,9 +28,9 @@ import {
   FieldDescription,
   FieldError,
   FieldGroup,
-  FieldLabel,
   FieldSeparator,
 } from "@/components/ui/field";
+import { FieldLabel } from "@/components/ui/field";
 import {
   InputGroup,
   InputGroupAddon,
@@ -38,8 +38,9 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { signUp } from "@/lib/auth-client";
+import { toast } from "@/components/ui/toast";
 
 type Role = "student" | "tutor";
 
@@ -84,6 +85,7 @@ export default function SignUpPage() {
     const name = String(formData.get("name") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
+    const role = String(formData.get("role") ?? "student");
 
     const nextErrors: Errors = {};
     if (!name) nextErrors.name = "Please enter your full name.";
@@ -95,15 +97,40 @@ export default function SignUpPage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    setLoading(false);
 
-    toast.add({
-      title: "Account created",
-      description: `Welcome to MentorLagbe, ${name.split(" ")[0]}! Sign-in isn't connected yet.`,
-      type: "success",
-    });
-    router.push("/");
+    try {
+      const { data, error } = await signUp.email({
+        name,
+        email,
+        password,
+        role,
+        callbackURL: "/",
+      });
+
+      if (error) {
+        toast.add({
+          title: "Sign up failed",
+          description: error.message || "Something went wrong.",
+          type: "error",
+        });
+      } else {
+        toast.add({
+          title: "Account created",
+          description: `Welcome ${name.split(" ")[0]}!`,
+          type: "success",
+        });
+        router.push("/");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.add({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        type: "error",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -211,7 +238,7 @@ export default function SignUpPage() {
                 <FieldError errors={toErrors(errors.password)} />
               </Field>
 
-              {/* Role selection fixed layout */}
+              {/* Role selection */}
               <div
                 role="radiogroup"
                 aria-label="I want to join as"
@@ -225,7 +252,7 @@ export default function SignUpPage() {
                     <label
                       key={option.value}
                       className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#0f7a5a]/30",
+                        "flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 transition-all",
                         selected
                           ? "border-[#0f7a5a] bg-[#eef7f2] text-[#0f513f] shadow-sm"
                           : "border-[#dfe6e1] bg-white text-[#475569] hover:bg-[#f6faf8]",
