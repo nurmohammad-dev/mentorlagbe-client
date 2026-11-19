@@ -1,237 +1,233 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpenCheck,
+  DollarSign,
+  GraduationCap,
+  Loader2,
+  Users,
+} from "lucide-react";
 
-import { Input } from "@/components/ui/input";
-import { toast } from "@/components/ui/toast";
 import { authFetch } from "@/lib/auth-fetch";
-import { cn } from "@/lib/utils";
 
-interface RegisteredUser {
-  _id: string;
-  name: string;
-  email: string;
-  role: "student" | "tutor" | "admin";
-  plan?: "free" | "pro";
-  createdAt?: string;
+interface AdminStatsResponse {
+  stats: {
+    totalUsers: number;
+    totalStudents: number;
+    totalTutors: number;
+    totalTuitions: number;
+    pendingTuitions: number;
+    approvedTuitions: number;
+    totalApplications: number;
+    totalRevenue: number;
+  };
+  chartData: { subject: string; count: number }[];
 }
 
-export default function AdminManageUsersPage() {
-  const [users, setUsers] = useState<RegisteredUser[]>([]);
+export default function AdminOverviewPage() {
+  const [data, setData] = useState<AdminStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<
-    "all" | "student" | "tutor" | "admin"
-  >("all");
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const loadStats = async () => {
       setLoading(true);
       try {
-        const res = await authFetch("/api/users");
-        const data = await res.json();
-        if (res.ok && Array.isArray(data)) {
-          setUsers(data);
-        } else {
-          toast.add({
-            title: "Failed to load users",
-            description: data?.message || "Could not fetch registered users.",
-            type: "error",
-          });
+        const res = await authFetch("/api/dashboard/stats");
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
         }
-      } catch {
-        toast.add({
-          title: "Network Error",
-          description: "Unable to connect to server.",
-          type: "error",
-        });
       } finally {
         setLoading(false);
       }
     };
-
-    fetchUsers();
+    loadStats();
   }, []);
 
-  const handleRoleChange = async (
-    userId: string,
-    newRole: "student" | "tutor" | "admin"
-  ) => {
-    setUpdatingId(userId);
-    try {
-      const res = await authFetch(`/api/users/${userId}/role`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: newRole }),
-      });
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-2xl border border-[#e3eae5] bg-white">
+        <Loader2 className="size-6 animate-spin text-[#0f7a5a]" />
+      </div>
+    );
+  }
 
-      const data = await res.json();
-      if (!res.ok) {
-        toast.add({
-          title: "Role update failed",
-          description: data?.message || "Could not change user role.",
-          type: "error",
-        });
-        return;
-      }
-
-      setUsers((prev) =>
-        prev.map((u) => (u._id === userId ? { ...u, role: newRole } : u))
-      );
-
-      toast.add({
-        title: "Role Updated",
-        description: `User role has been updated to ${newRole}.`,
-        type: "success",
-      });
-    } finally {
-      setUpdatingId(null);
-    }
+  const stats = data?.stats || {
+    totalUsers: 0,
+    totalStudents: 0,
+    totalTutors: 0,
+    totalTuitions: 0,
+    pendingTuitions: 0,
+    approvedTuitions: 0,
+    totalApplications: 0,
+    totalRevenue: 0,
   };
 
-  const filteredUsers = users.filter((u) => {
-    const matchesRole = roleFilter === "all" || u.role === roleFilter;
-    const query = search.trim().toLowerCase();
-    const matchesQuery =
-      !query ||
-      u.name?.toLowerCase().includes(query) ||
-      u.email?.toLowerCase().includes(query);
-    return matchesRole && matchesQuery;
-  });
+  const chartData = data?.chartData || [];
+  const maxSubjectCount = Math.max(
+    1,
+    ...chartData.map((item) => item.count || 0)
+  );
+
+  const cards = [
+    {
+      label: "Total Registered Users",
+      value: stats.totalUsers,
+      sub: `${stats.totalStudents} Students • ${stats.totalTutors} Tutors`,
+      icon: Users,
+      accent: "bg-[#e8f3ee] text-[#0f7a5a]",
+    },
+    {
+      label: "Total Verified Tutors",
+      value: stats.totalTutors,
+      sub: "Active educators on platform",
+      icon: GraduationCap,
+      accent: "bg-sky-100 text-sky-700",
+    },
+    {
+      label: "Pending vs Approved Tuitions",
+      value: `${stats.pendingTuitions} / ${stats.approvedTuitions}`,
+      sub: `${stats.totalTuitions} total submissions`,
+      icon: BookOpenCheck,
+      accent: "bg-amber-100 text-amber-700",
+    },
+    {
+      label: "Total Stripe Revenue",
+      value: `$${stats.totalRevenue.toLocaleString()}`,
+      sub: "From Pro plan subscriptions",
+      icon: DollarSign,
+      accent: "bg-emerald-100 text-emerald-700",
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
-          User & Role Management
+          Admin Platform Overview
         </h1>
         <p className="mt-1 text-[13px] text-[#5b6b64]">
-          View all registered members and assign Student, Tutor, or Admin
-          permissions.
+          Monitor platform users, tuition approval queue, and Stripe revenue.
         </p>
       </div>
 
-      {/* Search & Role Filter Bar */}
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
-          <Input
-            placeholder="Search by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-10 rounded-xl border-[#dce5df] bg-white pl-10 text-[13px]"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-1.5 rounded-xl border border-[#e3eae5] bg-white p-1">
-          {(["all", "student", "tutor", "admin"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setRoleFilter(tab)}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-[12px] font-semibold capitalize transition-colors",
-                roleFilter === tab
-                  ? "bg-[#0f7a5a] text-white"
-                  : "text-[#5b6b64] hover:text-[#12211c]"
-              )}
+      {/* 4 Stats Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={card.label}
+              className="rounded-2xl border border-[#e3eae5] bg-white p-5 shadow-xs"
             >
-              {tab}
-            </button>
-          ))}
-        </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-medium text-[#64748b]">
+                  {card.label}
+                </span>
+                <span
+                  className={`flex size-9 items-center justify-center rounded-xl ${card.accent}`}
+                >
+                  <Icon className="size-4" />
+                </span>
+              </div>
+              <p className="mt-3 text-2xl font-bold text-[#12211c]">
+                {card.value}
+              </p>
+              <p className="mt-1 text-[11px] text-[#64748b]">{card.sub}</p>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Users Table */}
-      {loading ? (
-        <div className="flex h-60 items-center justify-center rounded-2xl border border-[#e3eae5] bg-white">
-          <Loader2 className="size-6 animate-spin text-[#0f7a5a]" />
-        </div>
-      ) : filteredUsers.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#cfe0d7] bg-white p-12 text-center">
-          <p className="text-[15px] font-semibold text-[#12211c]">
-            No matching users found
+      {/* Subject Distribution & Quick Admin Links */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="rounded-2xl border border-[#e3eae5] bg-white p-6 lg:col-span-7">
+          <h2 className="text-[16px] font-semibold text-[#12211c]">
+            Tuitions by Subject
+          </h2>
+          <p className="mt-0.5 text-[12px] text-[#64748b]">
+            Distribution of listed tuition batches across academic categories.
           </p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-[#e3eae5] bg-white shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-[#eef2ef] bg-[#fbfaf7] text-[11px] font-semibold uppercase tracking-wider text-[#64748b]">
-                  <th className="px-5 py-3.5">User</th>
-                  <th className="px-5 py-3.5">Current Role</th>
-                  <th className="px-5 py-3.5">Subscription</th>
-                  <th className="px-5 py-3.5 text-right">Change Role</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#eef2ef]">
-                {filteredUsers.map((user) => (
-                  <tr key={user._id} className="hover:bg-[#fbfaf7]/70">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-[#12211c]">{user.name}</p>
-                      <p className="text-[12px] text-[#64748b]">{user.email}</p>
-                    </td>
 
-                    <td className="px-5 py-4">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize",
-                          user.role === "admin" &&
-                            "bg-purple-100 text-purple-800",
-                          user.role === "tutor" &&
-                            "bg-[#e8f3ee] text-[#0f513f]",
-                          user.role === "student" &&
-                            "bg-sky-100 text-sky-800"
-                        )}
-                      >
-                        {user.role === "admin" ? (
-                          <ShieldCheck className="size-3" />
-                        ) : null}
-                        {user.role}
+          {chartData.length === 0 ? (
+            <p className="py-10 text-center text-[13px] text-[#64748b]">
+              No tuition subject data available yet.
+            </p>
+          ) : (
+            <div className="mt-5 space-y-3.5">
+              {chartData.map((item) => {
+                const widthPercent = Math.round(
+                  (item.count / maxSubjectCount) * 100
+                );
+                return (
+                  <div key={item.subject} className="space-y-1">
+                    <div className="flex justify-between text-[12px]">
+                      <span className="font-medium text-[#12211c]">
+                        {item.subject}
                       </span>
-                    </td>
+                      <span className="font-semibold text-[#0f7a5a]">
+                        {item.count} {item.count === 1 ? "post" : "posts"}
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-[#eef5f1]">
+                      <div
+                        className="h-full rounded-full bg-[#0f7a5a] transition-all duration-300"
+                        style={{ width: `${widthPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-                    <td className="px-5 py-4">
-                      {user.plan === "pro" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
-                          <Sparkles className="size-3" />
-                          Pro
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
-                          Free
-                        </span>
-                      )}
-                    </td>
+        <div className="space-y-4 lg:col-span-5">
+          <div className="rounded-2xl border border-[#e3eae5] bg-white p-6">
+            <h3 className="text-[15px] font-semibold text-[#12211c]">
+              Tuition Approval Queue ({stats.pendingTuitions} Pending)
+            </h3>
+            <p className="mt-1 text-[12px] text-[#5b6b64]">
+              Review newly submitted tutor posts or seed sample listings.
+            </p>
+            <Link
+              href="/dashboard/admin/tuitions"
+              className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#0f7a5a] hover:underline"
+            >
+              Open Tuition Moderation
+              <ArrowRight className="size-4" />
+            </Link>
+          </div>
 
-                    <td className="px-5 py-4 text-right">
-                      <select
-                        aria-label={`Change role for ${user.name}`}
-                        disabled={updatingId === user._id}
-                        value={user.role}
-                        onChange={(e) =>
-                          handleRoleChange(
-                            user._id,
-                            e.target.value as "student" | "tutor" | "admin"
-                          )
-                        }
-                        className="h-9 rounded-xl border border-[#dce5df] bg-[#fbfaf7] px-3 text-[12px] font-medium text-[#12211c] outline-none focus:border-[#0f7a5a] disabled:opacity-50"
-                      >
-                        <option value="student">Student</option>
-                        <option value="tutor">Tutor</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-2xl border border-[#e3eae5] bg-white p-6">
+            <h3 className="text-[15px] font-semibold text-[#12211c]">
+              Role & Revenue Controls
+            </h3>
+            <p className="mt-1 text-[12px] text-[#5b6b64]">
+              Promote users to Admin/Tutor or inspect Stripe Pro receipts.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-4">
+              <Link
+                href="/dashboard/admin/users"
+                className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#0f7a5a] hover:underline"
+              >
+                Manage Users
+                <ArrowRight className="size-3.5" />
+              </Link>
+              <Link
+                href="/dashboard/admin/transactions"
+                className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#0f7a5a] hover:underline"
+              >
+                View Transactions
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

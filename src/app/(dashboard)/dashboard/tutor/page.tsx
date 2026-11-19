@@ -1,322 +1,194 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
-import { Upload } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Loader2,
+  Plus,
+  Sparkles,
+  Users,
+} from "lucide-react";
 
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toast";
+import { authFetch } from "@/lib/auth-fetch";
 
-const FREE_PLAN_LIMIT = 2;
+interface TutorStatsResponse {
+  plan: "free" | "pro";
+  stats: {
+    totalTuitions: number;
+    approvedTuitions: number;
+    pendingTuitions: number;
+    totalApplications: number;
+    acceptedApplications: number;
+    pendingApplications: number;
+  };
+}
 
-export default function PostTuitionPage() {
-  const { data: session } = authClient.useSession();
-  const user = session?.user as
-    | { name?: string; email?: string; plan?: string }
-    | undefined;
-  const plan = user?.plan || "free";
+export default function TutorOverviewPage() {
+  const [data, setData] = useState<TutorStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Replace with real count from backend API
-  const currentPostCount = 0;
-  const reachedFreeLimit =
-    plan === "free" && currentPostCount >= FREE_PLAN_LIMIT;
-
-  const [submitting, setSubmitting] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    subject: "",
-    classLevel: "",
-    mode: "Online",
-    location: "",
-    monthlyFee: "",
-    daysPerWeek: "3",
-    bannerImage: "",
-    description: "",
-  });
-
-  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
-    if (!apiKey) {
-      toast.add({
-        title: "ImgBB key missing",
-        description: "Set NEXT_PUBLIC_IMGBB_API_KEY in .env.local",
-        type: "error",
-      });
-      return;
-    }
-
-    setUploadingImage(true);
-    try {
-      const body = new FormData();
-      body.append("image", file);
-
-      const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-        method: "POST",
-        body,
-      });
-      const result = await res.json();
-
-      if (result.success && result.data?.url) {
-        setForm((prev) => ({ ...prev, bannerImage: result.data.url }));
-        toast.add({
-          title: "Banner uploaded",
-          description: "Image uploaded via ImgBB.",
-          type: "success",
-        });
-      } else {
-        throw new Error("Upload failed");
+  useEffect(() => {
+    const loadStats = async () => {
+      setLoading(true);
+      try {
+        const res = await authFetch("/api/dashboard/stats");
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        }
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      toast.add({
-        title: "Upload failed",
-        description: "Could not upload banner image.",
-        type: "error",
-      });
-    } finally {
-      setUploadingImage(false);
-    }
+    };
+    loadStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-2xl border border-[#e3eae5] bg-white">
+        <Loader2 className="size-6 animate-spin text-[#0f7a5a]" />
+      </div>
+    );
+  }
+
+  const stats = data?.stats || {
+    totalTuitions: 0,
+    approvedTuitions: 0,
+    pendingTuitions: 0,
+    totalApplications: 0,
+    acceptedApplications: 0,
+    pendingApplications: 0,
   };
+  const plan = data?.plan || "free";
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (reachedFreeLimit) {
-      toast.add({
-        title: "Limit reached",
-        description: "Free tutors can post up to 2 tuitions. Upgrade to Pro.",
-        type: "error",
-      });
-      return;
-    }
-
-    if (!form.title.trim() || !form.subject.trim() || !form.monthlyFee) {
-      toast.add({
-        title: "Missing fields",
-        description: "Please fill in title, subject, and monthly fee.",
-        type: "error",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // Payload matching assignment tuitions collection structure
-      const payload = {
-        ...form,
-        monthlyFee: Number(form.monthlyFee),
-        daysPerWeek: Number(form.daysPerWeek) || 3,
-        tutorName: user?.name || "",
-        tutorEmail: user?.email || "",
-        approvalStatus: "pending",
-        isActive: true,
-      };
-
-      // Connect POST /api/tuitions here
-      void payload;
-
-      toast.add({
-        title: "Tuition submitted",
-        description: "Saved as pending for admin approval.",
-        type: "success",
-      });
-
-      setForm({
-        title: "",
-        subject: "",
-        classLevel: "",
-        mode: "Online",
-        location: "",
-        monthlyFee: "",
-        daysPerWeek: "3",
-        bannerImage: "",
-        description: "",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const cards = [
+    {
+      label: "Total Tuitions Posted",
+      value: stats.totalTuitions,
+      icon: BookOpen,
+      accent: "bg-[#e8f3ee] text-[#0f7a5a]",
+    },
+    {
+      label: "Active / Approved Tuitions",
+      value: stats.approvedTuitions,
+      icon: CheckCircle2,
+      accent: "bg-emerald-100 text-emerald-700",
+    },
+    {
+      label: "Total Applicants Received",
+      value: stats.totalApplications,
+      icon: Users,
+      accent: "bg-sky-100 text-sky-700",
+    },
+    {
+      label: "Current Plan",
+      value: plan === "pro" ? "Tutor Pro" : "Free (Max 2)",
+      icon: Sparkles,
+      accent:
+        plan === "pro"
+          ? "bg-amber-100 text-amber-800"
+          : "bg-slate-100 text-slate-700",
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#12211c]">
-          Post a Tuition
-        </h1>
-        <p className="text-[13px] text-[#64748b]">
-          Create a tuition batch or 1-on-1 mentorship listing. New posts start as
-          pending approval.
-        </p>
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
+            Tutor Dashboard Overview
+          </h1>
+          <p className="mt-1 text-[13px] text-[#5b6b64]">
+            Monitor your published batches, approval status, and incoming
+            student requests.
+          </p>
+        </div>
+
+        <Link
+          href="/dashboard/tutor/post-tuition"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#0f7a5a] px-4 text-[13px] font-semibold text-white hover:bg-[#0c654b]"
+        >
+          <Plus className="size-4" />
+          Post New Tuition
+        </Link>
       </div>
 
-      {reachedFreeLimit && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-[13px] text-amber-900">
-          You have reached the Free Plan limit of {FREE_PLAN_LIMIT} tuition
-          posts. Upgrade to Pro for unlimited posts.
-        </div>
-      )}
-
-      <Card className="rounded-2xl border border-[#e4ece7] bg-white shadow-xs">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold text-[#12211c]">
-            Tuition Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="HSC Higher Math Batch"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  value={form.subject}
-                  onChange={(e) =>
-                    setForm({ ...form, subject: e.target.value })
-                  }
-                  placeholder="Mathematics"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="classLevel">Class Level</Label>
-                <Input
-                  id="classLevel"
-                  value={form.classLevel}
-                  onChange={(e) =>
-                    setForm({ ...form, classLevel: e.target.value })
-                  }
-                  placeholder="Class 11-12 / O-Level"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="mode">Mode</Label>
-                <select
-                  id="mode"
-                  value={form.mode}
-                  onChange={(e) => setForm({ ...form, mode: e.target.value })}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="Online">Online</option>
-                  <option value="Offline">Offline</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm({ ...form, location: e.target.value })
-                  }
-                  placeholder="Dhanmondi or Online"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="monthlyFee">Monthly Fee ($)</Label>
-                  <Input
-                    id="monthlyFee"
-                    type="number"
-                    min="1"
-                    value={form.monthlyFee}
-                    onChange={(e) =>
-                      setForm({ ...form, monthlyFee: e.target.value })
-                    }
-                    placeholder="80"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="daysPerWeek">Days / Week</Label>
-                  <Input
-                    id="daysPerWeek"
-                    type="number"
-                    min="1"
-                    max="7"
-                    value={form.daysPerWeek}
-                    onChange={(e) =>
-                      setForm({ ...form, daysPerWeek: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Banner Image Upload via ImgBB */}
-            <div className="space-y-1.5">
-              <Label htmlFor="bannerFile">Banner Image (ImgBB)</Label>
-              <div className="flex flex-wrap items-center gap-3">
-                <Input
-                  id="bannerFile"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={uploadingImage}
-                  className="max-w-xs"
-                />
-                {uploadingImage && (
-                  <span className="inline-flex items-center gap-1 text-[12px] text-[#0f7a5a]">
-                    <Upload className="size-3.5" /> Uploading...
-                  </span>
-                )}
-              </div>
-              {form.bannerImage && (
-                <p className="truncate text-[12px] text-[#0f7a5a]">
-                  Uploaded: {form.bannerImage}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                rows={4}
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-                placeholder="Syllabus coverage, schedule details, and teaching approach..."
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={submitting || uploadingImage || reachedFreeLimit}
-              className="rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b]"
+      {/* 4 Stats Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div
+              key={card.label}
+              className="rounded-2xl border border-[#e3eae5] bg-white p-5 shadow-xs"
             >
-              {submitting ? "Submitting..." : "Publish Tuition"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-medium text-[#64748b]">
+                  {card.label}
+                </span>
+                <span
+                  className={`flex size-9 items-center justify-center rounded-xl ${card.accent}`}
+                >
+                  <Icon className="size-4" />
+                </span>
+              </div>
+              <p className="mt-3 text-2xl font-bold text-[#12211c]">
+                {card.value}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Quick Action Cards */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col justify-between rounded-2xl border border-[#e3eae5] bg-white p-6">
+          <div>
+            <h2 className="text-[16px] font-semibold text-[#12211c]">
+              Review Incoming Student Requests ({stats.pendingApplications}{" "}
+              Pending)
+            </h2>
+            <p className="mt-1.5 text-[13px] text-[#5b6b64]">
+              Check student schedules, contact numbers, and accept qualified
+              learners into your batch.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/tutor/applicants"
+            className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#0f7a5a] hover:underline"
+          >
+            Manage Applicants
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+
+        <div className="flex flex-col justify-between rounded-2xl border border-[#cfe0d7] bg-[#eef7f2] p-6">
+          <div>
+            <h2 className="text-[16px] font-semibold text-[#12211c]">
+              {plan === "pro"
+                ? "Tutor Pro Plan Active"
+                : "Publish Unlimited Tuition Batches"}
+            </h2>
+            <p className="mt-1.5 text-[13px] text-[#0f513f]">
+              {plan === "pro"
+                ? "You can post unlimited tuitions with verified Pro badge status."
+                : "Free accounts are capped at 2 tuition posts. Upgrade to Tutor Pro ($15) for unlimited listings."}
+            </p>
+          </div>
+          {plan !== "pro" ? (
+            <Link
+              href="/pricing"
+              className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#0f7a5a] hover:underline"
+            >
+              Upgrade to Tutor Pro ($15)
+              <ArrowRight className="size-4" />
+            </Link>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
