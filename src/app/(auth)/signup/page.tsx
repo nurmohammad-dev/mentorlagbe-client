@@ -2,345 +2,344 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
   BookOpen,
-  Check,
   Eye,
   EyeOff,
   GraduationCap,
+  Loader2,
   Lock,
   Mail,
   User,
 } from "lucide-react";
 
-import GoogleButton from "@/components/shared/GoogleButton";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldSeparator,
-} from "@/components/ui/field";
-import { FieldLabel } from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
-import { signUp } from "@/lib/auth-client";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import GoogleButton from "@/components/shared/GoogleButton";
+import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 
-type Role = "student" | "tutor";
+type UserRole = "student" | "tutor";
 
-type Errors = {
+interface FormErrors {
   name?: string;
   email?: string;
   password?: string;
-};
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const ROLES = [
-  {
-    value: "student",
-    label: "Student",
-    description: "I want to learn",
-    icon: GraduationCap,
-  },
-  {
-    value: "tutor",
-    label: "Tutor",
-    description: "I want to teach",
-    icon: BookOpen,
-  },
-] as const;
-
-function toErrors(message?: string) {
-  return message ? [{ message }] : undefined;
 }
 
 export default function SignUpPage() {
   const router = useRouter();
-  const [role, setRole] = useState<Role>("student");
+  const [role, setRole] = useState<UserRole>("student");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const validateForm = () => {
+    const nextErrors: FormErrors = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    const formData = new FormData(event.currentTarget);
-    const name = String(formData.get("name") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim();
-    const password = String(formData.get("password") ?? "");
-    const role = String(formData.get("role") ?? "student");
+    if (!name.trim()) {
+      nextErrors.name = "Full name is required.";
+    } else if (name.trim().length < 2) {
+      nextErrors.name = "Name must be at least 2 characters.";
+    }
 
-    const nextErrors: Errors = {};
-    if (!name) nextErrors.name = "Please enter your full name.";
-    if (!EMAIL_PATTERN.test(email))
-      nextErrors.email = "Enter a valid email address.";
-    if (password.length < 6) nextErrors.password = "Use at least 6 characters.";
+    if (!email.trim()) {
+      nextErrors.email = "Email address is required.";
+    } else if (!emailRegex.test(email.trim())) {
+      nextErrors.email = "Please enter a valid email address.";
+    }
+
+    if (!password) {
+      nextErrors.password = "Password is required.";
+    } else if (password.length < 8) {
+      nextErrors.password = "Password must be at least 8 characters.";
+    }
 
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
     setLoading(true);
 
     try {
-      const { data, error } = await signUp.email({
-        name,
-        email,
+      const signUpPayload = {
+        name: name.trim(),
+        email: email.trim(),
         password,
         role,
-        callbackURL: "/",
-      });
+        plan: "free",
+      };
+
+      const { error } = await authClient.signUp.email(
+        signUpPayload as Parameters<typeof authClient.signUp.email>[0]
+      );
 
       if (error) {
         toast.add({
-          title: "Sign up failed",
-          description: error.message || "Something went wrong.",
+          title: "Registration failed",
+          description:
+            error.message || "Could not create account. Please try again.",
           type: "error",
         });
-      } else {
-        toast.add({
-          title: "Account created",
-          description: `Welcome ${name.split(" ")[0]}!`,
-          type: "success",
-        });
-        router.push("/");
+        return;
       }
-    } catch (err) {
-      console.error(err);
+
       toast.add({
-        title: "Error",
-        description: "An unexpected error occurred.",
+        title: "Account created!",
+        description: `Welcome to MentorLagbe as a ${role === "tutor" ? "Tutor" : "Student"} (Free Plan).`,
+        type: "success",
+      });
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.add({
+        title: "Something went wrong",
+        description: "Unable to complete registration right now.",
         type: "error",
       });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <Card className="gap-0 rounded-2xl border border-[#e6ebe6] bg-white py-0 ring-0 shadow-[0_30px_60px_-40px_rgba(15,81,63,0.4)]">
-        <CardHeader className="px-6 pt-7 pb-5">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
-            Create your account
-          </h1>
-          <CardDescription className="text-[13px] text-[#64748b]">
-            Join as a student or tutor — it only takes a minute.
-          </CardDescription>
-        </CardHeader>
+    <div className="rounded-3xl border border-[#e3eae5] bg-white p-6 shadow-[0_24px_48px_-32px_rgba(16,32,27,0.25)] sm:p-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
+          Create your free account
+        </h1>
+        <p className="mt-1.5 text-[13px] text-[#5b6b64]">
+          Choose your role to get started with MentorLagbe.
+        </p>
+      </div>
 
-        <CardContent className="px-6 pb-7">
-          <form onSubmit={handleSubmit} noValidate>
-            <FieldGroup className="gap-4">
-              <Field data-invalid={Boolean(errors.name)}>
-                <FieldLabel
-                  htmlFor="name"
-                  className="text-[13px] text-[#33413b]"
-                >
-                  Full name
-                </FieldLabel>
-                <InputGroup className="h-10">
-                  <InputGroupAddon>
-                    <User className="size-4" aria-hidden="true" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="name"
-                    name="name"
-                    type="text"
-                    autoComplete="name"
-                    placeholder="e.g. John Doe"
-                    aria-invalid={Boolean(errors.name)}
-                    className="h-10 text-[13px]"
-                  />
-                </InputGroup>
-                <FieldError errors={toErrors(errors.name)} />
-              </Field>
-
-              <Field data-invalid={Boolean(errors.email)}>
-                <FieldLabel
-                  htmlFor="email"
-                  className="text-[13px] text-[#33413b]"
-                >
-                  Email address
-                </FieldLabel>
-                <InputGroup className="h-10">
-                  <InputGroupAddon>
-                    <Mail className="size-4" aria-hidden="true" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    aria-invalid={Boolean(errors.email)}
-                    className="h-10 text-[13px]"
-                  />
-                </InputGroup>
-                <FieldError errors={toErrors(errors.email)} />
-              </Field>
-
-              <Field data-invalid={Boolean(errors.password)}>
-                <FieldLabel
-                  htmlFor="password"
-                  className="text-[13px] text-[#33413b]"
-                >
-                  Password
-                </FieldLabel>
-                <InputGroup className="h-10">
-                  <InputGroupAddon>
-                    <Lock className="size-4" aria-hidden="true" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    placeholder="••••••••"
-                    aria-invalid={Boolean(errors.password)}
-                    className="h-10 text-[13px]"
-                  />
-                  <InputGroupAddon align="inline-end" className="pr-1">
-                    <InputGroupButton
-                      size="icon-sm"
-                      onClick={() => setShowPassword((value) => !value)}
-                      aria-label={
-                        showPassword ? "Hide password" : "Show password"
-                      }
-                    >
-                      {showPassword ? (
-                        <EyeOff className="size-4" aria-hidden="true" />
-                      ) : (
-                        <Eye className="size-4" aria-hidden="true" />
-                      )}
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-                <FieldDescription className="text-[12px]">
-                  At least 6 characters.
-                </FieldDescription>
-                <FieldError errors={toErrors(errors.password)} />
-              </Field>
-
-              {/* Role selection */}
-              <div
-                role="radiogroup"
-                aria-label="I want to join as"
-                className="grid grid-cols-2 gap-3"
-              >
-                {ROLES.map((option) => {
-                  const Icon = option.icon;
-                  const selected = role === option.value;
-
-                  return (
-                    <label
-                      key={option.value}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 transition-all",
-                        selected
-                          ? "border-[#0f7a5a] bg-[#eef7f2] text-[#0f513f] shadow-sm"
-                          : "border-[#dfe6e1] bg-white text-[#475569] hover:bg-[#f6faf8]",
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="role"
-                        value={option.value}
-                        checked={selected}
-                        onChange={() => setRole(option.value)}
-                        className="sr-only"
-                      />
-                      <div
-                        className={cn(
-                          "p-2 rounded-lg shrink-0",
-                          selected
-                            ? "bg-[#0f7a5a] text-white"
-                            : "bg-gray-100 text-gray-500",
-                        )}
-                      >
-                        <Icon className="size-4" aria-hidden="true" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-semibold leading-tight">
-                          {option.label}
-                        </span>
-                        <span className="block text-[11px] text-[#7b8b84] truncate mt-0.5">
-                          {option.description}
-                        </span>
-                      </div>
-                      {selected ? (
-                        <Check
-                          className="size-4 shrink-0 text-[#0f7a5a]"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                    </label>
-                  );
-                })}
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="mt-2 h-11 w-full rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b] shadow-md transition-all"
-              >
-                {loading ? (
-                  <>
-                    <Spinner className="size-4" />
-                    Creating account…
-                  </>
-                ) : (
-                  <>
-                    Create account
-                    <ArrowRight className="size-4" aria-hidden="true" />
-                  </>
-                )}
-              </Button>
-            </FieldGroup>
-          </form>
-
-          <FieldSeparator className="my-5 text-[11px] uppercase tracking-wide text-gray-400">
-            or continue with
-          </FieldSeparator>
-
-          <GoogleButton
-            label="Sign up with Google"
-            onClick={() =>
-              toast.add({
-                title: "Google sign-up unavailable",
-                description: "The auth provider isn't connected yet.",
-                type: "info",
-              })
-            }
-          />
-
-          <p className="mt-6 text-center text-[13px] text-[#64748b]">
-            Already have an account?{" "}
-            <Link
-              href="/signin"
-              className="font-semibold text-[#0f7a5a] hover:underline"
+      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+        {/* Role Selection Cards */}
+        <div>
+          <span className="block text-[12px] font-semibold text-[#12211c]">
+            I want to join as
+          </span>
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setRole("student")}
+              className={cn(
+                "flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all",
+                role === "student"
+                  ? "border-[#0f7a5a] bg-[#eef7f2] ring-2 ring-[#0f7a5a]/20"
+                  : "border-[#dce5df] bg-[#fbfaf7] hover:border-[#b7cbc0]"
+              )}
             >
-              Sign in
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg",
+                  role === "student"
+                    ? "bg-[#0f7a5a] text-white"
+                    : "bg-white text-[#5b6b64]"
+                )}
+              >
+                <BookOpen className="size-4" />
+              </span>
+              <span className="mt-2.5 text-[13px] font-semibold text-[#12211c]">
+                Student
+              </span>
+              <span className="mt-0.5 text-[11px] text-[#64748b]">
+                Find mentors & apply
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setRole("tutor")}
+              className={cn(
+                "flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all",
+                role === "tutor"
+                  ? "border-[#0f7a5a] bg-[#eef7f2] ring-2 ring-[#0f7a5a]/20"
+                  : "border-[#dce5df] bg-[#fbfaf7] hover:border-[#b7cbc0]"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg",
+                  role === "tutor"
+                    ? "bg-[#0f7a5a] text-white"
+                    : "bg-white text-[#5b6b64]"
+                )}
+              >
+                <GraduationCap className="size-4" />
+              </span>
+              <span className="mt-2.5 text-[13px] font-semibold text-[#12211c]">
+                Tutor
+              </span>
+              <span className="mt-0.5 text-[11px] text-[#64748b]">
+                Post tuition batches
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Full Name */}
+        <div>
+          <label
+            htmlFor="signup-name"
+            className="block text-[12px] font-semibold text-[#12211c]"
+          >
+            Full Name
+          </label>
+          <div className="relative mt-1.5">
+            <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
+            <Input
+              id="signup-name"
+              type="text"
+              autoComplete="name"
+              placeholder="e.g. Nur Mohammad"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errors.name) setErrors({ ...errors, name: undefined });
+              }}
+              className="h-11 rounded-xl border-[#dce5df] bg-[#fbfaf7] pl-10 text-[13px] focus-visible:border-[#0f7a5a] focus-visible:bg-white"
+            />
+          </div>
+          {errors.name ? (
+            <p className="mt-1 text-[11px] font-medium text-red-600">
+              {errors.name}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Email */}
+        <div>
+          <label
+            htmlFor="signup-email"
+            className="block text-[12px] font-semibold text-[#12211c]"
+          >
+            Email Address
+          </label>
+          <div className="relative mt-1.5">
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
+            <Input
+              id="signup-email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors({ ...errors, email: undefined });
+              }}
+              className="h-11 rounded-xl border-[#dce5df] bg-[#fbfaf7] pl-10 text-[13px] focus-visible:border-[#0f7a5a] focus-visible:bg-white"
+            />
+          </div>
+          {errors.email ? (
+            <p className="mt-1 text-[11px] font-medium text-red-600">
+              {errors.email}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Password */}
+        <div>
+          <label
+            htmlFor="signup-password"
+            className="block text-[12px] font-semibold text-[#12211c]"
+          >
+            Password
+          </label>
+          <div className="relative mt-1.5">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
+            <Input
+              id="signup-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Minimum 8 characters"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password)
+                  setErrors({ ...errors, password: undefined });
+              }}
+              className="h-11 rounded-xl border-[#dce5df] bg-[#fbfaf7] pl-10 pr-10 text-[13px] focus-visible:border-[#0f7a5a] focus-visible:bg-white"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a9a93] hover:text-[#12211c]"
+            >
+              {showPassword ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
+          </div>
+          {errors.password ? (
+            <p className="mt-1 text-[11px] font-medium text-red-600">
+              {errors.password}
+            </p>
+          ) : null}
+        </div>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-11 w-full rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b]"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Creating account...
+            </>
+          ) : (
+            <>
+              Create Free Account
+              <ArrowRight className="size-4" />
+            </>
+          )}
+        </Button>
+      </form>
+
+      {/* Divider & Social Login */}
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-[#e8eeea]" />
+        <span className="text-[11px] font-medium uppercase tracking-wider text-[#8a9a93]">
+          or sign up with
+        </span>
+        <div className="h-px flex-1 bg-[#e8eeea]" />
+      </div>
+
+      <GoogleButton
+        label="Sign up with Google"
+        onClick={() => {
+          void authClient.signIn.social({
+            provider: "google",
+            callbackURL: "/dashboard",
+          });
+        }}
+      />
+
+      <p className="mt-6 text-center text-[13px] text-[#5b6b64]">
+        Already have an account?{" "}
+        <Link
+          href="/signin"
+          className="font-semibold text-[#0f7a5a] hover:underline"
+        >
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

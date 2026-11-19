@@ -2,227 +2,312 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  Loader2,
+  Lock,
+  Mail,
+  Shield,
+  UserCheck,
+  Zap,
+} from "lucide-react";
 
-import GoogleButton from "@/components/shared/GoogleButton";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSeparator,
-} from "@/components/ui/field";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
-import { signIn } from "@/lib/auth-client";
+import GoogleButton from "@/components/shared/GoogleButton";
+import { authClient } from "@/lib/auth-client";
 
-type Errors = {
-  email?: string;
-  password?: string;
-};
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function toErrors(message?: string) {
-  return message ? [{ message }] : undefined;
-}
+const DEMO_ACCOUNTS = [
+  {
+    role: "Admin",
+    label: "Demo Admin",
+    email: "admin@mentorlagbe.com",
+    password: "Password123!",
+    badge: "Full Moderation",
+    icon: Shield,
+  },
+  {
+    role: "Tutor",
+    label: "Demo Tutor",
+    email: "tutor@mentorlagbe.com",
+    password: "Password123!",
+    badge: "Post & Manage",
+    icon: GraduationCap,
+  },
+  {
+    role: "Student",
+    label: "Demo Student",
+    email: "student@mentorlagbe.com",
+    password: "Password123!",
+    badge: "Browse & Apply",
+    icon: UserCheck,
+  },
+];
 
 export default function SignInPage() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
+  const [activeDemo, setActiveDemo] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
 
-async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const validateForm = (targetEmail: string, targetPassword: string) => {
+    const nextErrors: { email?: string; password?: string } = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "").trim();
-    const password = String(formData.get("password") ?? "");
+    if (!targetEmail.trim()) {
+      nextErrors.email = "Email address is required.";
+    } else if (!emailRegex.test(targetEmail.trim())) {
+      nextErrors.email = "Please enter a valid email address.";
+    }
 
-    // Validation check
-    const nextErrors: Errors = {};
-    if (!EMAIL_PATTERN.test(email)) nextErrors.email = "Enter a valid email address.";
-    if (!password) nextErrors.password = "Enter your password.";
+    if (!targetPassword) {
+      nextErrors.password = "Password is required.";
+    } else if (targetPassword.length < 6) {
+      nextErrors.password = "Password must be at least 6 characters.";
+    }
 
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const executeSignIn = async (
+    targetEmail: string,
+    targetPassword: string,
+    demoRole?: string
+  ) => {
+    if (!validateForm(targetEmail, targetPassword)) return;
 
     setLoading(true);
+    if (demoRole) setActiveDemo(demoRole);
 
     try {
-      // BetterAuth sign in request
-      const { data, error } = await signIn.email({
-        email,
-        password,
-        rememberMe: true,
-        callbackURL: "/",
+      const { error } = await authClient.signIn.email({
+        email: targetEmail.trim(),
+        password: targetPassword,
       });
 
       if (error) {
         toast.add({
           title: "Sign in failed",
-          description: error.message || "Invalid email or password.",
+          description:
+            error.message ||
+            "Invalid credentials. Make sure this account is registered.",
           type: "error",
         });
-      } else {
-        toast.add({
-          title: "Welcome back",
-          description: "Signed in successfully!",
-          type: "success",
-        });
-        router.push("/");
+        return;
       }
-    } catch (err) {
-      console.error(err);
+
       toast.add({
-        title: "Error",
-        description: "An unexpected error occurred.",
+        title: "Welcome back!",
+        description: demoRole
+          ? `Signed in with ${demoRole} demo account.`
+          : "You have signed in successfully.",
+        type: "success",
+      });
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.add({
+        title: "Something went wrong",
+        description: "Unable to connect to authentication service.",
         type: "error",
       });
     } finally {
       setLoading(false);
+      setActiveDemo(null);
     }
-  }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeSignIn(email, password);
+  };
+
+  const handleDemoLogin = async (demo: (typeof DEMO_ACCOUNTS)[number]) => {
+    setEmail(demo.email);
+    setPassword(demo.password);
+    setErrors({});
+    await executeSignIn(demo.email, demo.password, demo.role);
+  };
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <Card className="gap-0 rounded-2xl border border-[#e6ebe6] bg-white py-0 ring-0 shadow-[0_30px_60px_-40px_rgba(15,81,63,0.4)]">
-        <CardHeader className="px-6 pt-7 pb-5">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
-            Welcome back
-          </h1>
-          <CardDescription className="text-[13px] text-[#64748b]">
-            Sign in to continue to your dashboard.
-          </CardDescription>
-        </CardHeader>
+    <div className="rounded-3xl border border-[#e3eae5] bg-white p-6 shadow-[0_24px_48px_-32px_rgba(16,32,27,0.25)] sm:p-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
+          Sign in to your account
+        </h1>
+        <p className="mt-1.5 text-[13px] text-[#5b6b64]">
+          Enter your credentials or use one-click demo access below.
+        </p>
+      </div>
 
-        <CardContent className="px-6 pb-7">
-          <form onSubmit={handleSubmit} noValidate>
-            <FieldGroup className="gap-4">
-              <Field data-invalid={Boolean(errors.email)}>
-                <FieldLabel htmlFor="email" className="text-[13px] text-[#33413b]">
-                  Email address
-                </FieldLabel>
-                <InputGroup className="h-10">
-                  <InputGroupAddon>
-                    <Mail className="size-4" aria-hidden="true" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    aria-invalid={Boolean(errors.email)}
-                    className="h-10 text-[13px]"
-                  />
-                </InputGroup>
-                <FieldError errors={toErrors(errors.email)} />
-              </Field>
+      {/* Email & Password Form */}
+      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+        <div>
+          <label
+            htmlFor="signin-email"
+            className="block text-[12px] font-semibold text-[#12211c]"
+          >
+            Email Address
+          </label>
+          <div className="relative mt-1.5">
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
+            <Input
+              id="signin-email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors({ ...errors, email: undefined });
+              }}
+              className="h-11 rounded-xl border-[#dce5df] bg-[#fbfaf7] pl-10 text-[13px] focus-visible:border-[#0f7a5a] focus-visible:bg-white"
+            />
+          </div>
+          {errors.email ? (
+            <p className="mt-1 text-[11px] font-medium text-red-600">
+              {errors.email}
+            </p>
+          ) : null}
+        </div>
 
-              <Field data-invalid={Boolean(errors.password)}>
-                <FieldLabel htmlFor="password" className="text-[13px] text-[#33413b]">
-                  Password
-                </FieldLabel>
-                <InputGroup className="h-10">
-                  <InputGroupAddon>
-                    <Lock className="size-4" aria-hidden="true" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    aria-invalid={Boolean(errors.password)}
-                    className="h-10 text-[13px]"
-                  />
-                  <InputGroupAddon align="inline-end" className="pr-1">
-                    <InputGroupButton
-                      size="icon-sm"
-                      onClick={() => setShowPassword((value) => !value)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="size-4" aria-hidden="true" />
-                      ) : (
-                        <Eye className="size-4" aria-hidden="true" />
-                      )}
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-                <FieldError errors={toErrors(errors.password)} />
-              </Field>
+        <div>
+          <label
+            htmlFor="signin-password"
+            className="block text-[12px] font-semibold text-[#12211c]"
+          >
+            Password
+          </label>
+          <div className="relative mt-1.5">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
+            <Input
+              id="signin-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password)
+                  setErrors({ ...errors, password: undefined });
+              }}
+              className="h-11 rounded-xl border-[#dce5df] bg-[#fbfaf7] pl-10 pr-10 text-[13px] focus-visible:border-[#0f7a5a] focus-visible:bg-white"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a9a93] hover:text-[#12211c]"
+            >
+              {showPassword ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
+          </div>
+          {errors.password ? (
+            <p className="mt-1 text-[11px] font-medium text-red-600">
+              {errors.password}
+            </p>
+          ) : null}
+        </div>
 
-              <Field orientation="horizontal" className="items-center py-1">
-                <Checkbox id="remember" name="remember" />
-                <FieldLabel
-                  htmlFor="remember"
-                  className="text-[13px] font-normal text-[#475569] cursor-pointer"
-                >
-                  Keep me signed in
-                </FieldLabel>
-              </Field>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-11 w-full rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b]"
+        >
+          {loading && !activeDemo ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Sign In
+              <ArrowRight className="size-4" />
+            </>
+          )}
+        </Button>
+      </form>
 
-              <Button
-                type="submit"
+      {/* Divider & Social Login */}
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-[#e8eeea]" />
+        <span className="text-[11px] font-medium uppercase tracking-wider text-[#8a9a93]">
+          or continue with
+        </span>
+        <div className="h-px flex-1 bg-[#e8eeea]" />
+      </div>
+
+      <GoogleButton />
+
+      {/* 1-Click Demo Login Section */}
+      <div className="mt-6 rounded-2xl border border-[#e3ece7] bg-[#f7faf8] p-4">
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#0f513f]">
+            <Zap className="size-3.5 text-[#0f7a5a]" />
+            Quick Demo Access (1-Click)
+          </span>
+          <span className="text-[10px] font-medium text-[#64748b]">
+            Instant Role Test
+          </span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {DEMO_ACCOUNTS.map((demo) => {
+            const Icon = demo.icon;
+            const isThisLoading = loading && activeDemo === demo.role;
+
+            return (
+              <button
+                key={demo.role}
+                type="button"
                 disabled={loading}
-                className="mt-1 h-11 w-full rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b] shadow-md transition-all"
+                onClick={() => handleDemoLogin(demo)}
+                className="group flex flex-col items-center rounded-xl border border-[#dce7e1] bg-white px-2.5 py-2.5 text-center transition-all hover:border-[#0f7a5a] hover:bg-[#eef7f2] disabled:opacity-60"
               >
-                {loading ? (
-                  <>
-                    <Spinner className="size-4" />
-                    Signing in…
-                  </>
-                ) : (
-                  <>
-                    Sign in
-                    <ArrowRight className="size-4" aria-hidden="true" />
-                  </>
-                )}
-              </Button>
-            </FieldGroup>
-          </form>
+                <span className="flex size-8 items-center justify-center rounded-lg bg-[#e8f3ee] text-[#0f7a5a] transition-colors group-hover:bg-[#0f7a5a] group-hover:text-white">
+                  {isThisLoading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Icon className="size-4" />
+                  )}
+                </span>
+                <span className="mt-1.5 text-[12px] font-semibold text-[#12211c]">
+                  {demo.role}
+                </span>
+                <span className="mt-0.5 text-[10px] text-[#64748b]">
+                  {demo.badge}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-          <FieldSeparator className="my-5 text-[11px] uppercase tracking-wide text-gray-400">
-            or continue with
-          </FieldSeparator>
-
-          <GoogleButton
-            label="Sign in with Google"
-            onClick={() =>
-              toast.add({
-                title: "Google sign-in unavailable",
-                description: "The auth provider isn't connected yet.",
-                type: "info",
-              })
-            }
-          />
-
-          <p className="mt-6 text-center text-[13px] text-[#64748b]">
-            New to MentorLagbe?{" "}
-            <Link href="/signup" className="font-semibold text-[#0f7a5a] hover:underline">
-              Create an account
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+      <p className="mt-6 text-center text-[13px] text-[#5b6b64]">
+        Don&apos;t have an account?{" "}
+        <Link
+          href="/signup"
+          className="font-semibold text-[#0f7a5a] hover:underline"
+        >
+          Create free account
+        </Link>
+      </p>
     </div>
   );
 }
