@@ -3,95 +3,96 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BookOpenCheck,
   CheckCircle2,
   Clock,
   Crown,
+  FileText,
 } from "lucide-react";
 
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import StatsCard from "@/components/dashboard/shared/StatsCard";
+import StatCard from "@/components/dashboard/shared/StatsCard";
 
 export default function StudentDashboardPage() {
-  // Replace with real API stats from your backend
+  const { data: session } = authClient.useSession();
+  const plan = (session?.user as { plan?: string })?.plan || "free";
+
+  // Placeholder counts until backend API is connected
   const stats = {
-    totalApplied: 6,
-    accepted: 2,
-    pending: 4,
-    plan: "Free",
+    totalApplied: 0,
+    accepted: 0,
+    pending: 0,
   };
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#12211c]">
+          <h1 className="text-2xl font-bold tracking-tight text-[#12211c]">
             Student Overview
           </h1>
           <p className="text-[13px] text-[#64748b]">
-            Track your tuition applications and current subscription status.
+            Track your tuition applications and current subscription plan.
           </p>
         </div>
 
         <Link href="/tuitions">
-          <Button className="h-10 rounded-xl bg-[#0f7a5a] px-4 text-[13px] font-semibold text-white hover:bg-[#0c654b]">
+          <Button className="rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b]">
             Browse Tuitions
-            <ArrowRight className="ml-2 size-4" />
+            <ArrowRight className="ml-1.5 size-4" />
           </Button>
         </Link>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatsCard
+      {/* Overview Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
           title="Total Applied Tuitions"
           value={stats.totalApplied}
           subtitle="All submitted requests"
-          icon={BookOpenCheck}
+          icon={FileText}
         />
-        <StatsCard
+        <StatCard
           title="Accepted Applications"
           value={stats.accepted}
           subtitle="Approved by tutors"
           icon={CheckCircle2}
         />
-        <StatsCard
+        <StatCard
           title="Pending Applications"
           value={stats.pending}
           subtitle="Awaiting tutor response"
           icon={Clock}
         />
-        <StatsCard
+        <StatCard
           title="Current Plan"
-          value={stats.plan}
-          subtitle="Upgrade for priority booking"
+          value={plan.toUpperCase()}
+          subtitle={
+            plan === "pro" ? "Priority booking enabled" : "Upgrade for priority"
+          }
           icon={Crown}
-          highlight
+          highlight={plan === "pro"}
         />
       </div>
 
-      {/* Quick Actions */}
-      <Card className="rounded-2xl border border-[#e4ece7] bg-white py-0 shadow-xs">
-        <CardHeader className="border-b border-[#e4ece7] px-6 py-4">
-          <CardTitle className="text-[16px] font-semibold text-[#12211c]">
+      {/* Shortcuts */}
+      <Card className="rounded-2xl border border-[#e4ece7] bg-white shadow-xs">
+        <CardHeader>
+          <CardTitle className="text-base font-semibold text-[#12211c]">
             Quick Actions
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3 p-6">
+        <CardContent className="flex flex-wrap gap-3">
           <Link href="/dashboard/student/my-applications">
             <Button variant="outline" className="rounded-xl text-[13px]">
-              View My Applications
+              My Applications
             </Button>
           </Link>
           <Link href="/pricing">
             <Button variant="outline" className="rounded-xl text-[13px]">
               Upgrade to Pro ($10)
-            </Button>
-          </Link>
-          <Link href="/dashboard/profile">
-            <Button variant="outline" className="rounded-xl text-[13px]">
-              Update Profile
             </Button>
           </Link>
         </CardContent>

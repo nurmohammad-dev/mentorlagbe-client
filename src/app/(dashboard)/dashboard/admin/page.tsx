@@ -9,9 +9,9 @@ import {
   Users,
 } from "lucide-react";
 
-import StatsCard from "@/components/dashboard/shared/StatsCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import StatsCard from "@/components/dashboard/shared/StatsCard";
 
 export default function AdminDashboardPage() {
   // Replace with real API stats from your backend
