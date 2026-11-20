@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -18,7 +18,6 @@ import {
   Send,
   ShieldAlert,
   Sparkles,
-  User,
   X,
 } from "lucide-react";
 
@@ -50,6 +49,13 @@ interface TuitionDetails {
 const FALLBACK_BANNER =
   "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=80";
 
+const SCHEDULE_OPTIONS = [
+  "Sat, Mon, Wed (4:00 PM - 5:30 PM)",
+  "Sat, Mon, Wed (7:00 PM - 8:30 PM)",
+  "Sun, Tue, Thu (5:00 PM - 6:30 PM)",
+  "Fri & Sat (10:00 AM - 12:00 PM)",
+];
+
 export default function TuitionDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -67,12 +73,29 @@ export default function TuitionDetailsPage() {
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [studentPhone, setStudentPhone] = useState("");
   const [preferredSchedule, setPreferredSchedule] = useState("");
+  const [isCustomSchedule, setIsCustomSchedule] = useState(false);
   const [studentNote, setStudentNote] = useState("");
   const [submittingApp, setSubmittingApp] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
 
+  // Redirect to /signin if user is not authenticated
+  const hasRedirected = useRef(false);
+
+  // Redirect to /signin if user is not authenticated
   useEffect(() => {
-    if (!id) return;
+    if (!sessionLoading && !user && !hasRedirected.current) {
+      hasRedirected.current = true;
+      toast.add({
+        title: "Sign in required",
+        description: "Please sign in to view tuition details.",
+        type: "info",
+      });
+      router.replace("/signin");
+    }
+  }, [sessionLoading, user, router]);
+
+  useEffect(() => {
+    if (sessionLoading || !user || !id) return;
 
     const fetchTuitionDetails = async () => {
       setLoading(true);
@@ -94,7 +117,7 @@ export default function TuitionDetailsPage() {
     };
 
     fetchTuitionDetails();
-  }, [id]);
+  }, [id, sessionLoading, user]);
 
   // Check if logged-in student has already applied to this tuition
   useEffect(() => {
@@ -133,7 +156,7 @@ export default function TuitionDetailsPage() {
     if (!preferredSchedule.trim()) {
       toast.add({
         title: "Preferred Schedule Required",
-        description: "Please mention your available days or time slot.",
+        description: "Please select or enter your preferred study schedule.",
         type: "error",
       });
       return;
@@ -169,6 +192,11 @@ export default function TuitionDetailsPage() {
 
       setAlreadyApplied(true);
       setApplyModalOpen(false);
+      setStudentPhone("");
+      setPreferredSchedule("");
+      setIsCustomSchedule(false);
+      setStudentNote("");
+
       toast.add({
         title: "Application Submitted!",
         description:
@@ -185,6 +213,15 @@ export default function TuitionDetailsPage() {
       setSubmittingApp(false);
     }
   };
+
+  // Block rendering any details until authentication is verified
+  if (sessionLoading || !user) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="size-7 animate-spin text-[#0f7a5a]" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -351,27 +388,7 @@ export default function TuitionDetailsPage() {
 
             {/* Role-Restricted Application Action */}
             <div className="border-t border-[#eef2ef] pt-5">
-              {sessionLoading ? (
-                <div className="h-11 w-full animate-pulse rounded-xl bg-gray-100" />
-              ) : !user ? (
-                <div className="space-y-3">
-                  <Link
-                    href="/signin"
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white transition-colors hover:bg-[#0c654b]"
-                  >
-                    Sign In as Student to Apply
-                  </Link>
-                  <p className="text-center text-[11px] text-[#64748b]">
-                    Need an account?{" "}
-                    <Link
-                      href="/signup"
-                      className="font-semibold text-[#0f7a5a] hover:underline"
-                    >
-                      Register free
-                    </Link>
-                  </p>
-                </div>
-              ) : userRole !== "student" ? (
+              {userRole !== "student" ? (
                 <div className="space-y-3">
                   <button
                     type="button"
@@ -418,7 +435,7 @@ export default function TuitionDetailsPage() {
       </div>
 
       {/* Student Apply Modal */}
-      {applyModalOpen && user && userRole === "student" ? (
+      {applyModalOpen && userRole === "student" ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl sm:p-7">
             <div className="flex items-center justify-between border-b border-[#eef2ef] pb-3.5">
@@ -498,13 +515,39 @@ export default function TuitionDetailsPage() {
                 >
                   Preferred Schedule *
                 </label>
-                <Input
+                <select
                   id="apply-schedule"
-                  placeholder="e.g. Sat, Mon, Wed (5:00 PM - 6:30 PM)"
-                  value={preferredSchedule}
-                  onChange={(e) => setPreferredSchedule(e.target.value)}
-                  className="mt-1.5 h-10 rounded-xl border-[#dce5df] bg-[#fbfaf7] text-[13px]"
-                />
+                  value={isCustomSchedule ? "custom" : preferredSchedule}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "custom") {
+                      setIsCustomSchedule(true);
+                      setPreferredSchedule("");
+                    } else {
+                      setIsCustomSchedule(false);
+                      setPreferredSchedule(val);
+                    }
+                  }}
+                  className="mt-1.5 h-10 w-full rounded-xl border border-[#dce5df] bg-[#fbfaf7] px-3 text-[13px] text-[#12211c] outline-none focus:border-[#0f7a5a] focus:bg-white"
+                >
+                  <option value="">Select a preferred time slot...</option>
+                  {SCHEDULE_OPTIONS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
+                  <option value="custom">Other / Custom Schedule...</option>
+                </select>
+
+                {isCustomSchedule ? (
+                  <Input
+                    type="text"
+                    placeholder="e.g. Sat, Mon, Wed (5:00 PM - 6:30 PM)"
+                    value={preferredSchedule}
+                    onChange={(e) => setPreferredSchedule(e.target.value)}
+                    className="mt-2 h-10 rounded-xl border-[#dce5df] bg-[#fbfaf7] text-[13px]"
+                  />
+                ) : null}
               </div>
 
               <div>
