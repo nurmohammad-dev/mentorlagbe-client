@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -14,12 +13,12 @@ import {
   Mail,
   User,
 } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
-import GoogleButton from "@/components/shared/GoogleButton";
-import { authClient } from "@/lib/auth-client";
+import { authClient, signIn, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 type UserRole = "student" | "tutor";
@@ -31,14 +30,23 @@ interface FormErrors {
 }
 
 export default function SignUpPage() {
-  const router = useRouter();
+  const { data: session, isPending: sessionPending } = useSession();
+
   const [role, setRole] = useState<UserRole>("student");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // If already logged in, redirect straight to dashboard
+  useEffect(() => {
+    if (!sessionPending && session?.user) {
+      window.location.replace("/dashboard");
+    }
+  }, [session, sessionPending]);
 
   const validateForm = () => {
     const nextErrors: FormErrors = {};
@@ -82,7 +90,7 @@ export default function SignUpPage() {
       };
 
       const { error } = await authClient.signUp.email(
-        signUpPayload as Parameters<typeof authClient.signUp.email>[0]
+        signUpPayload as Parameters<typeof authClient.signUp.email>[0],
       );
 
       if (error) {
@@ -92,6 +100,7 @@ export default function SignUpPage() {
             error.message || "Could not create account. Please try again.",
           type: "error",
         });
+        setLoading(false);
         return;
       }
 
@@ -101,16 +110,41 @@ export default function SignUpPage() {
         type: "success",
       });
 
-      router.push("/dashboard");
-      router.refresh();
+      // Full navigation ensures fresh session cookies are read immediately
+      window.location.href = "/dashboard";
     } catch {
       toast.add({
         title: "Something went wrong",
         description: "Unable to complete registration right now.",
         type: "error",
       });
-    } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setGoogleLoading(true);
+    try {
+      const { error } = await signIn.social({
+        provider: "google",
+        callbackURL: "/dashboard",
+      });
+
+      if (error) {
+        toast.add({
+          title: "Google sign up failed",
+          description: error.message || "Could not sign up with Google.",
+          type: "error",
+        });
+        setGoogleLoading(false);
+      }
+    } catch {
+      toast.add({
+        title: "Something went wrong",
+        description: "Unable to connect to Google authentication.",
+        type: "error",
+      });
+      setGoogleLoading(false);
     }
   };
 
@@ -139,7 +173,7 @@ export default function SignUpPage() {
                 "flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all",
                 role === "student"
                   ? "border-[#0f7a5a] bg-[#eef7f2] ring-2 ring-[#0f7a5a]/20"
-                  : "border-[#dce5df] bg-[#fbfaf7] hover:border-[#b7cbc0]"
+                  : "border-[#dce5df] bg-[#fbfaf7] hover:border-[#b7cbc0]",
               )}
             >
               <span
@@ -147,7 +181,7 @@ export default function SignUpPage() {
                   "flex size-8 items-center justify-center rounded-lg",
                   role === "student"
                     ? "bg-[#0f7a5a] text-white"
-                    : "bg-white text-[#5b6b64]"
+                    : "bg-white text-[#5b6b64]",
                 )}
               >
                 <BookOpen className="size-4" />
@@ -167,7 +201,7 @@ export default function SignUpPage() {
                 "flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all",
                 role === "tutor"
                   ? "border-[#0f7a5a] bg-[#eef7f2] ring-2 ring-[#0f7a5a]/20"
-                  : "border-[#dce5df] bg-[#fbfaf7] hover:border-[#b7cbc0]"
+                  : "border-[#dce5df] bg-[#fbfaf7] hover:border-[#b7cbc0]",
               )}
             >
               <span
@@ -175,7 +209,7 @@ export default function SignUpPage() {
                   "flex size-8 items-center justify-center rounded-lg",
                   role === "tutor"
                     ? "bg-[#0f7a5a] text-white"
-                    : "bg-white text-[#5b6b64]"
+                    : "bg-white text-[#5b6b64]",
                 )}
               >
                 <GraduationCap className="size-4" />
@@ -295,7 +329,7 @@ export default function SignUpPage() {
 
         <Button
           type="submit"
-          disabled={loading}
+          disabled={loading || googleLoading}
           className="h-11 w-full rounded-xl bg-[#0f7a5a] text-[13px] font-semibold text-white hover:bg-[#0c654b]"
         >
           {loading ? (
@@ -305,7 +339,7 @@ export default function SignUpPage() {
             </>
           ) : (
             <>
-              Create Free Account
+              Create Account
               <ArrowRight className="size-4" />
             </>
           )}
@@ -316,20 +350,24 @@ export default function SignUpPage() {
       <div className="my-5 flex items-center gap-3">
         <div className="h-px flex-1 bg-[#e8eeea]" />
         <span className="text-[11px] font-medium uppercase tracking-wider text-[#8a9a93]">
-          or sign up with
+          OR
         </span>
         <div className="h-px flex-1 bg-[#e8eeea]" />
       </div>
 
-      <GoogleButton
-        label="Sign up with Google"
-        onClick={() => {
-          void authClient.signIn.social({
-            provider: "google",
-            callbackURL: "/dashboard",
-          });
-        }}
-      />
+      <Button
+        type="button"
+        disabled={loading || googleLoading}
+        onClick={handleGoogleSignUp}
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#f5f5f5] text-[13px] font-semibold text-[#12211c] hover:bg-[#e8eeea]"
+      >
+        {googleLoading ? (
+          <Loader2 className="size-4 animate-spin text-[#0f7a5a]" />
+        ) : (
+          <FcGoogle className="h-5 w-5" />
+        )}
+        Continue with Google
+      </Button>
 
       <p className="mt-6 text-center text-[13px] text-[#5b6b64]">
         Already have an account?{" "}

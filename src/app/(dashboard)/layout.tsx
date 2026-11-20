@@ -9,6 +9,9 @@ import DashboardSidebar, {
 } from "@/components/dashboard/shared/DashboardSidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { authClient } from "@/lib/auth-client";
+import { authFetch } from "@/lib/auth-fetch";
+
+export type UserPlan = "free" | "pro";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -17,6 +20,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [plan, setPlan] = useState<UserPlan>("free");
+  const [dbProfile, setDbProfile] = useState<{
+    name?: string;
+    image?: string | null;
+  }>({});
 
   const rawUser = session?.user as
     | {
@@ -50,6 +58,32 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [isPending, rawUser, role, pathname, router]);
 
+  useEffect(() => {
+    if (!rawUser?.email) return;
+
+    let active = true;
+    const syncUserPlan = async () => {
+      try {
+        const res = await authFetch("/api/users/me");
+        if (res.ok && active) {
+          const data = await res.json();
+          setPlan(data?.plan === "pro" ? "pro" : "free");
+          setDbProfile({
+            name: data?.name,
+            image: data?.image,
+          });
+        }
+      } catch {
+        // Keep default fallback values
+      }
+    };
+
+    syncUserPlan();
+    return () => {
+      active = false;
+    };
+  }, [rawUser?.email, pathname]);
+
   if (isPending || !rawUser) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f8faf9]">
@@ -62,10 +96,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   const user = {
-    name: rawUser.name,
+    name: dbProfile.name || rawUser.name,
     email: rawUser.email,
-    image: rawUser.image,
+    image: dbProfile.image ?? rawUser.image,
     role,
+    plan,
   };
 
   return (

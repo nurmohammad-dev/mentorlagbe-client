@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, PanelLeft } from "lucide-react";
+import { Crown, Menu, PanelLeft } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import type { UserRole } from "./DashboardSidebar";
+import type { UserPlan, UserRole } from "./DashboardSidebar";
 
 type DashboardHeaderProps = {
   user: {
@@ -13,6 +13,7 @@ type DashboardHeaderProps = {
     email: string;
     image?: string | null;
     role: UserRole;
+    plan?: UserPlan;
   };
   onToggleDesktopSidebar: () => void;
   onOpenMobileSidebar: () => void;
@@ -33,6 +34,8 @@ export default function DashboardHeader({
   onToggleDesktopSidebar,
   onOpenMobileSidebar,
 }: DashboardHeaderProps) {
+  const isPro = user.plan === "pro";
+
   return (
     <header className="sticky top-0 z-30 flex h-[72px] w-full items-center justify-between border-b border-[#e4ece7] bg-white/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
@@ -73,20 +76,45 @@ export default function DashboardHeader({
         href="/dashboard/profile"
         className="flex items-center gap-2.5 rounded-full py-1 pr-3 pl-1.5 transition-colors hover:bg-[#eef5f1]"
       >
-        <Avatar className="size-8">
-          {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
-          <AvatarFallback className="bg-[#0f7a5a] text-[10px] font-semibold text-white">
-            {getInitials(user.name)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="size-8">
+            {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
+            <AvatarFallback className="bg-[#0f7a5a] text-[10px] font-semibold text-white">
+              {getInitials(user.name)}
+            </AvatarFallback>
+          </Avatar>
+
+          {user.role !== "admin" && isPro && (
+            <span
+              title="Pro Member"
+              className="absolute -bottom-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-amber-500 text-white ring-2 ring-white"
+            >
+              <Crown className="size-2" />
+            </span>
+          )}
+        </div>
 
         <div className="hidden text-left sm:block">
           <p className="max-w-36 truncate text-[12px] font-semibold text-[#12211c]">
             {user.name}
           </p>
-          <p className="text-[10px] font-medium uppercase tracking-wide text-[#0f7a5a]">
-            {user.role}
-          </p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-[#0f7a5a]">
+              {user.role}
+            </span>
+
+            {user.role !== "admin" &&
+              (isPro ? (
+                <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0 text-[9px] font-bold uppercase text-amber-700">
+                  <Crown className="size-2.5 text-amber-600" />
+                  PRO
+                </span>
+              ) : (
+                <span className="rounded-full bg-slate-100 px-1.5 py-0 text-[9px] font-semibold uppercase text-slate-600">
+                  FREE
+                </span>
+              ))}
+          </div>
         </div>
       </Link>
     </header>

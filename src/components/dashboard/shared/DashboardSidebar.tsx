@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   CreditCard,
+  Crown,
   FileText,
   GraduationCap,
   Home,
@@ -28,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export type UserRole = "student" | "tutor" | "admin";
+export type UserPlan = "free" | "pro";
 
 type NavItem = {
   label: string;
@@ -40,6 +42,7 @@ type DashboardUser = {
   email: string;
   image?: string | null;
   role: UserRole;
+  plan?: UserPlan;
 };
 
 const ROLE_MENUS: Record<UserRole, NavItem[]> = {
@@ -130,6 +133,7 @@ function SidebarContent({
   onCloseMobile,
 }: SidebarContentProps) {
   const compact = !isMobile && collapsed;
+  const isPro = user.plan === "pro";
 
   return (
     <div className="flex h-full flex-col bg-white">
@@ -162,23 +166,48 @@ function SidebarContent({
             compact && "justify-center p-2"
           )}
         >
-          <Avatar className="size-9 shrink-0">
-            {user.image ? (
-              <AvatarImage src={user.image} alt={user.name} />
-            ) : null}
-            <AvatarFallback className="bg-[#0f7a5a] text-[11px] font-semibold text-white">
-              {getInitials(user.name)}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative shrink-0">
+            <Avatar className="size-9">
+              {user.image ? (
+                <AvatarImage src={user.image} alt={user.name} />
+              ) : null}
+              <AvatarFallback className="bg-[#0f7a5a] text-[11px] font-semibold text-white">
+                {getInitials(user.name)}
+              </AvatarFallback>
+            </Avatar>
+
+            {user.role !== "admin" && isPro && (
+              <span
+                title="Pro Member"
+                className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-amber-500 text-white ring-2 ring-white"
+              >
+                <Crown className="size-2.5" />
+              </span>
+            )}
+          </div>
 
           {!compact && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-semibold text-[#12211c]">
                 {user.name}
               </p>
-              <span className="mt-0.5 inline-block rounded-full bg-[#e8f3ee] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0f513f]">
-                {user.role}
-              </span>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="inline-block rounded-full bg-[#e8f3ee] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0f513f]">
+                  {user.role}
+                </span>
+
+                {user.role !== "admin" &&
+                  (isPro ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                      <Crown className="size-2.5 text-amber-600" />
+                      PRO
+                    </span>
+                  ) : (
+                    <span className="inline-block rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                      FREE
+                    </span>
+                  ))}
+              </div>
             </div>
           )}
         </div>
