@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -62,50 +62,66 @@ function BrowseTuitionsContent() {
 
   const limit = 9;
 
-  useEffect(() => {
-    const paramQ = searchParams.get("q") || searchParams.get("search") || "";
+  // Sync URL search query without triggering cascading useEffect renders
+  const paramQ = searchParams.get("q") || searchParams.get("search") || "";
+  const [prevParamQ, setPrevParamQ] = useState(paramQ);
+
+  if (paramQ !== prevParamQ) {
+    setPrevParamQ(paramQ);
     setSearchInput(paramQ);
     setSearchQuery(paramQ);
     setPage(1);
-  }, [searchParams]);
-
-  const fetchTuitions = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      if (subject) params.set("subject", subject);
-      if (classLevel) params.set("classLevel", classLevel);
-      if (mode) params.set("mode", mode);
-      if (sort) params.set("sort", sort);
-      params.set("page", String(page));
-      params.set("limit", String(limit));
-
-      const res = await fetch(
-        `${API_BASE_URL}/api/tuitions?${params.toString()}`,
-        { cache: "no-store" }
-      );
-      const data = await res.json();
-
-      if (res.ok) {
-        setTuitions(Array.isArray(data.tuitions) ? data.tuitions : []);
-        setTotalPages(Number(data.totalPages) || 1);
-        setTotalItems(Number(data.total) || 0);
-      } else {
-        setTuitions([]);
-      }
-    } catch {
-      setTuitions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery, subject, classLevel, mode, sort, page]);
+  }
 
   useEffect(() => {
-    fetchTuitions();
-  }, [fetchTuitions]);
+    let ignore = false;
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+    const loadTuitions = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.set("search", searchQuery.trim());
+        if (subject) params.set("subject", subject);
+        if (classLevel) params.set("classLevel", classLevel);
+        if (mode) params.set("mode", mode);
+        if (sort) params.set("sort", sort);
+        params.set("page", String(page));
+        params.set("limit", String(limit));
+
+        const res = await fetch(
+          `${API_BASE_URL}/api/tuitions?${params.toString()}`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+
+        if (!ignore) {
+          if (res.ok) {
+            setTuitions(Array.isArray(data.tuitions) ? data.tuitions : []);
+            setTotalPages(Number(data.totalPages) || 1);
+            setTotalItems(Number(data.total) || 0);
+          } else {
+            setTuitions([]);
+          }
+        }
+      } catch {
+        if (!ignore) {
+          setTuitions([]);
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadTuitions();
+
+    return () => {
+      ignore = true;
+    };
+  }, [searchQuery, subject, classLevel, mode, sort, page]);
+
+  const handleSearchSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPage(1);
     setSearchQuery(searchInput);

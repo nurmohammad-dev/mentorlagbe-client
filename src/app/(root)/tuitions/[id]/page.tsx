@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { authClient } from "@/lib/auth-client";
-import { API_BASE_URL, authFetch } from "@/lib/auth-fetch";
+import { authFetch } from "@/lib/auth-fetch";
 
 interface TuitionDetails {
   _id: string;
@@ -81,7 +81,6 @@ export default function TuitionDetailsPage() {
   // Redirect to /signin if user is not authenticated
   const hasRedirected = useRef(false);
 
-  // Redirect to /signin if user is not authenticated
   useEffect(() => {
     if (!sessionLoading && !user && !hasRedirected.current) {
       hasRedirected.current = true;
@@ -100,15 +99,14 @@ export default function TuitionDetailsPage() {
     const fetchTuitionDetails = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/tuitions/${id}`, {
-          cache: "no-store",
-        });
+        const res = await authFetch(`/api/tuitions/${id}`);
         if (!res.ok) {
           setTuition(null);
           return;
         }
         const data = await res.json();
-        setTuition(data);
+        const tuitionData = data?.data && !data?._id ? data.data : data;
+        setTuition(tuitionData);
       } catch {
         setTuition(null);
       } finally {
@@ -128,8 +126,9 @@ export default function TuitionDetailsPage() {
         const res = await authFetch("/api/applications/my-applications");
         if (!res.ok) return;
         const apps = await res.json();
-        if (Array.isArray(apps)) {
-          const exists = apps.some((a) => a.tuitionId === id);
+        const list = Array.isArray(apps) ? apps : apps?.data || [];
+        if (Array.isArray(list)) {
+          const exists = list.some((a) => String(a.tuitionId) === String(id));
           setAlreadyApplied(exists);
         }
       } catch {

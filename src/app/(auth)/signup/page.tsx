@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
+  Check,
   Eye,
   EyeOff,
   GraduationCap,
@@ -12,6 +13,7 @@ import {
   Lock,
   Mail,
   User,
+  X,
 } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 
@@ -27,6 +29,7 @@ interface FormErrors {
   name?: string;
   email?: string;
   password?: string;
+  confirmPassword?: string;
 }
 
 export default function SignUpPage() {
@@ -36,7 +39,9 @@ export default function SignUpPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -47,6 +52,24 @@ export default function SignUpPage() {
       window.location.replace("/dashboard");
     }
   }, [session, sessionPending]);
+
+  // Dynamic password rules
+  const passwordRules = [
+    { label: "At least 8 characters", valid: password.length >= 8 },
+    {
+      label: "At least one uppercase letter (A-Z)",
+      valid: /[A-Z]/.test(password),
+    },
+    { label: "At least one number (0-9)", valid: /[0-9]/.test(password) },
+    {
+      label: "At least one special character (!@#$%^&*)",
+      valid: /[^A-Za-z0-9]/.test(password),
+    },
+  ];
+
+  const isPasswordValid = passwordRules.every((rule) => rule.valid);
+  const isConfirmPasswordMatch =
+    confirmPassword.length > 0 && password === confirmPassword;
 
   const validateForm = () => {
     const nextErrors: FormErrors = {};
@@ -66,8 +89,14 @@ export default function SignUpPage() {
 
     if (!password) {
       nextErrors.password = "Password is required.";
-    } else if (password.length < 8) {
-      nextErrors.password = "Password must be at least 8 characters.";
+    } else if (!isPasswordValid) {
+      nextErrors.password = "Please fulfill all password requirements above.";
+    }
+
+    if (!confirmPassword) {
+      nextErrors.confirmPassword = "Please confirm your password.";
+    } else if (password !== confirmPassword) {
+      nextErrors.confirmPassword = "Passwords do not match.";
     }
 
     setErrors(nextErrors);
@@ -296,9 +325,10 @@ export default function SignUpPage() {
             <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
             <Input
               id="signup-password"
+              name="password"
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              placeholder="Minimum 8 characters"
+              placeholder="Create a strong password"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -320,9 +350,105 @@ export default function SignUpPage() {
               )}
             </button>
           </div>
+
+          {/* Live Password Requirements Checklist */}
+          {password.length > 0 ? (
+            <ul className="mt-2 space-y-1.5 rounded-xl border border-[#e3eae5] bg-[#fbfaf7] p-3 text-[11.5px]">
+              {passwordRules.map((rule) => (
+                <li
+                  key={rule.label}
+                  className={cn(
+                    "flex items-center gap-2 transition-colors",
+                    rule.valid
+                      ? "font-medium text-[#0f7a5a]"
+                      : "text-[#5b6b64]",
+                  )}
+                >
+                  {rule.valid ? (
+                    <Check className="size-3.5 shrink-0 text-[#0f7a5a]" />
+                  ) : (
+                    <X className="size-3.5 shrink-0 text-red-500" />
+                  )}
+                  <span>{rule.label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
           {errors.password ? (
             <p className="mt-1 text-[11px] font-medium text-red-600">
               {errors.password}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Confirm Password */}
+        <div>
+          <label
+            htmlFor="signup-confirm-password"
+            className="block text-[12px] font-semibold text-[#12211c]"
+          >
+            Confirm Password
+          </label>
+          <div className="relative mt-1.5">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#8a9a93]" />
+            <Input
+              id="signup-confirm-password"
+              name="confirmPassword"
+              type={showConfirmPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Re-enter your password"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (errors.confirmPassword)
+                  setErrors({ ...errors, confirmPassword: undefined });
+              }}
+              className="h-11 rounded-xl border-[#dce5df] bg-[#fbfaf7] pl-10 pr-10 text-[13px] focus-visible:border-[#0f7a5a] focus-visible:bg-white"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((prev) => !prev)}
+              aria-label={
+                showConfirmPassword
+                  ? "Hide confirm password"
+                  : "Show confirm password"
+              }
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8a9a93] hover:text-[#12211c]"
+            >
+              {showConfirmPassword ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
+          </div>
+
+          {/* Live Password Match Status */}
+          {confirmPassword.length > 0 ? (
+            <p
+              className={cn(
+                "mt-1.5 flex items-center gap-1.5 text-[11.5px] font-medium",
+                isConfirmPasswordMatch ? "text-[#0f7a5a]" : "text-red-600",
+              )}
+            >
+              {isConfirmPasswordMatch ? (
+                <>
+                  <Check className="size-3.5 shrink-0" />
+                  <span>Passwords match</span>
+                </>
+              ) : (
+                <>
+                  <X className="size-3.5 shrink-0" />
+                  <span>Passwords do not match</span>
+                </>
+              )}
+            </p>
+          ) : null}
+
+          {errors.confirmPassword ? (
+            <p className="mt-1 text-[11px] font-medium text-red-600">
+              {errors.confirmPassword}
             </p>
           ) : null}
         </div>
